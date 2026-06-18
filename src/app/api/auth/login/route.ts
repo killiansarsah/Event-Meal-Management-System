@@ -13,14 +13,15 @@ import { createAdminClient } from "@/lib/supabase/server"
  *
  * Response (success):
  *   {
+ *     "user": { "id": "...", "email": "...", "role": "...", "tenant_id": "...", "event_id": "..." },
  *     "session": {
  *       "access_token": "...",
  *       "refresh_token": "...",
  *       "expires_in": 3600,
  *       "expires_at": 1234567890,
- *       "token_type": "bearer",
- *       "user": { "id": "...", "email": "..." }
- *     }
+ *       "token_type": "bearer"
+ *     },
+ *     "role": "organizer"
  *   }
  *
  * Response (error):
@@ -53,9 +54,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Return the session
+    // Fetch user details from the users table
+    const { data: userRecord, error: userError } = await supabase
+      .from("users")
+      .select("id, email, role, tenant_id, event_id, full_name, status")
+      .eq("id", data.user.id)
+      .single()
+
+    if (userError || !userRecord) {
+      return NextResponse.json(
+        { error: "User record not found" },
+        { status: 401 },
+      )
+    }
+
+    // Return session and user info
     return NextResponse.json(
-      { session: data.session },
+      {
+        user: {
+          id: userRecord.id,
+          email: userRecord.email,
+          full_name: userRecord.full_name,
+          role: userRecord.role,
+          tenant_id: userRecord.tenant_id,
+          event_id: userRecord.event_id,
+          status: userRecord.status,
+        },
+        session: {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+          expires_in: data.session.expires_in,
+          expires_at: data.session.expires_at,
+          token_type: data.session.token_type,
+        },
+        role: userRecord.role,
+      },
       { status: 200 },
     )
   } catch (err) {

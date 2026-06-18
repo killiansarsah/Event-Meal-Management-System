@@ -7,12 +7,12 @@ import { createAdminClient } from "@/lib/supabase/server"
  *
  * This endpoint:
  * 1. Validates the invite token against the staff_invites table
- * 2. Checks that the invite has not expired (expires_at > now)
- * 3. Checks that the invite status is 'pending'
+ * 2. Checks that the invite status is 'pending'
+ * 3. Checks that the invite has not expired (expires_at > now)
  * 4. Creates a Supabase Auth user account
  * 5. Creates a users table record with role, tenant_id, and event_id from the invite
  * 6. Updates the staff_invites record status to 'accepted'
- * 7. Returns error if token is expired or already used
+ * 7. Returns the new session
  *
  * Request body:
  *   {
@@ -22,11 +22,20 @@ import { createAdminClient } from "@/lib/supabase/server"
  *
  * Response (success):
  *   {
- *     "message": "Invitation accepted successfully",
  *     "user": {
  *       "id": "user_id",
  *       "email": "user@example.com",
- *       "role": "registration_staff"
+ *       "full_name": "User Name",
+ *       "role": "registration_staff",
+ *       "tenant_id": "...",
+ *       "event_id": "..."
+ *     },
+ *     "session": {
+ *       "access_token": "...",
+ *       "refresh_token": "...",
+ *       "expires_in": 3600,
+ *       "expires_at": 1234567890,
+ *       "token_type": "bearer"
  *     }
  *   }
  *
@@ -59,7 +68,7 @@ export async function POST(request: NextRequest) {
     // Query the staff_invites table to find the invite
     const { data: invite, error: inviteError } = await supabase
       .from("staff_invites")
-      .select("id, email, full_name, role, tenant_id, event_id, status, expires_at")
+      .select("id, email, full_name, role, tenant_id, event_id, status, expires_at, invited_by")
       .eq("token", token)
       .single()
 
@@ -140,13 +149,37 @@ export async function POST(request: NextRequest) {
       // Note: We don't fail here, the invite is already functionally accepted
     }
 
+    // Sign in the new user to get a session
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+      email: invite.email,
+      password,
+    })
+
+    if (signInError || !signInData.session) {
+      console.error("[v0] Sign-in after invite acceptance error:", signInError)
+      return NextResponse.json(
+        { error: "Failed to create session" },
+        { status: 500 },
+      )
+    }
+
     return NextResponse.json(
       {
-        message: "Invitation accepted successfully",
         user: {
           id: userId,
           email: invite.email,
+          full_name: invite.full_name,
           role: invite.role,
+          tenant_id: invite.tenant_id,
+          event_id: invite.event_id,
+          status: "active",
+        },
+        session: {
+          access_token: signInData.session.access_token,
+          refresh_token: signInData.session.refresh_token,
+          expires_in: signInData.session.expires_in,
+          expires_at: signInData.session.expires_at,
+          token_type: signInData.session.token_type,
         },
       },
       { status: 201 },

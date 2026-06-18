@@ -4,16 +4,16 @@ import { createAdminClient } from "@/lib/supabase/server"
 
 /**
  * POST /api/auth/logout
- * Logs out the authenticated user by invalidating their session.
+ * Invalidates the current user's session.
  *
- * Headers:
+ * Request headers:
  *   Authorization: Bearer <token>
  *
  * Response (success):
- *   { "message": "Logged out successfully" }
+ *   { "success": true }
  *
  * Response (error):
- *   { "error": "Unauthorized" }
+ *   { "error": "User account is not active" } (403)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -21,17 +21,24 @@ export async function POST(request: NextRequest) {
     const authResult = await validateAuth(request)
     if (authResult instanceof NextResponse) return authResult
 
-    // Sign out the user by invalidating their session
-    const supabase = createAdminClient()
+    const user = authResult
     const authHeader = request.headers.get("authorization")
-    const token = authHeader?.substring("Bearer ".length)
+    const token = authHeader!.substring("Bearer ".length)
 
-    if (token) {
-      await supabase.auth.admin.signOut({ jwt: token })
+    // Sign out the session using the admin client
+    const supabase = createAdminClient()
+    const { error } = await supabase.auth.admin.signOut(user.id)
+
+    if (error) {
+      console.error("[v0] Logout error:", error)
+      return NextResponse.json(
+        { error: "Failed to logout" },
+        { status: 500 },
+      )
     }
 
     return NextResponse.json(
-      { message: "Logged out successfully" },
+      { success: true },
       { status: 200 },
     )
   } catch (err) {

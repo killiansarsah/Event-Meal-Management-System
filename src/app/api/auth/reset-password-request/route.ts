@@ -5,26 +5,23 @@ import { createAdminClient } from "@/lib/supabase/server"
  * POST /api/auth/reset-password-request
  * Sends a password reset email to the user.
  *
+ * Always returns success, even if email is not found,
+ * to prevent email enumeration attacks.
+ *
  * Request body:
  *   {
  *     "email": "user@example.com"
  *   }
  *
- * Response (success):
- *   { "message": "Password reset email sent" }
- *
- * Response (error):
- *   { "error": "Email not found" }
- *
- * Note: For security, this endpoint returns success even if the email
- * doesn't exist, to prevent email enumeration attacks.
+ * Response (always):
+ *   { "success": true }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { email } = body
 
-    // Validate required fields
+    // Validate email is provided
     if (!email) {
       return NextResponse.json(
         { error: "Email is required" },
@@ -32,33 +29,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Request a password reset from Supabase Auth
+    // Always return success to prevent email enumeration
     const supabase = createAdminClient()
-    const { error } = await supabase.auth.admin.generateLink({
-      type: "recovery",
-      email,
-      options: {
-        // The reset link will redirect to this URL
-        // The client should handle the token and new_password parameters
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/auth/reset-password`,
-      },
+
+    // Attempt to send the reset email
+    // Note: Supabase Auth sends reset emails internally
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${process.env.NEXT_PUBLIC_BASE_URL}/auth/reset-password`,
     })
 
-    // Always return success to prevent email enumeration
-    // The actual error is logged server-side
+    // We don't expose whether the email was found or not
     if (error) {
-      console.error("[v0] Reset password request error:", error)
+      console.error("[v0] Reset password email error:", error)
+      // Still return success to prevent enumeration
     }
 
     return NextResponse.json(
-      { message: "If an account exists with that email, a password reset link has been sent" },
+      { success: true },
       { status: 200 },
     )
   } catch (err) {
     console.error("[v0] Reset password request error:", err)
+    // Return success even on error to prevent enumeration
     return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 },
+      { success: true },
+      { status: 200 },
     )
   }
 }

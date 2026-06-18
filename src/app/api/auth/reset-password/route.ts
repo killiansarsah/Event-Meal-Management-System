@@ -1,58 +1,56 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createAdminClient } from "@/lib/supabase/server"
+import { createServerClient } from "@/lib/supabase/server"
 
 /**
  * POST /api/auth/reset-password
- * Resets a user's password using the recovery token from the reset email.
+ * Sets a new password using a valid Supabase password reset session.
+ *
+ * The reset session is obtained from the email reset link sent via
+ * /api/auth/reset-password-request. The session token comes in the URL
+ * and is managed by Supabase automatically.
  *
  * Request body:
  *   {
- *     "token": "reset_token_from_email",
- *     "new_password": "newpassword123"
+ *     "new_password": "newsecurepassword123"
  *   }
  *
  * Response (success):
- *   { "message": "Password reset successfully" }
+ *   { "success": true }
  *
  * Response (error):
- *   { "error": "Invalid or expired token" }
+ *   { "error": "Invalid or expired reset session" }
  */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { token, new_password } = body
+    const { new_password } = body
 
-    // Validate required fields
-    if (!token || !new_password) {
+    // Validate password is provided
+    if (!new_password) {
       return NextResponse.json(
-        { error: "Token and new password are required" },
+        { error: "New password is required" },
         { status: 400 },
       )
     }
 
-    // Validate password strength (minimum 8 characters)
-    if (new_password.length < 8) {
-      return NextResponse.json(
-        { error: "Password must be at least 8 characters long" },
-        { status: 400 },
-      )
-    }
+    // Create the server client (this reads the session from cookies)
+    const supabase = await createServerClient()
 
-    // Update the password using the recovery token
-    const supabase = createAdminClient()
-    const { error } = await supabase.auth.admin.updateUserById(token, {
+    // Update the user's password (this only works during a reset session)
+    const { error } = await supabase.auth.updateUser({
       password: new_password,
     })
 
     if (error) {
+      console.error("[v0] Password reset error:", error)
       return NextResponse.json(
-        { error: "Invalid or expired token" },
+        { error: "Invalid or expired reset session" },
         { status: 401 },
       )
     }
 
     return NextResponse.json(
-      { message: "Password reset successfully" },
+      { success: true },
       { status: 200 },
     )
   } catch (err) {
