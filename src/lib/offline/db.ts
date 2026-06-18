@@ -13,7 +13,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb'
  * - sync_queue: Pending offline operations to sync
  */
 
-interface Event {
+export interface Event {
   id: string
   name: string
   date_start: string
@@ -24,14 +24,14 @@ interface Event {
   registration_link_token?: string
 }
 
-interface Category {
+export interface Category {
   id: string
   event_id: string
   name: string
   fee: number
 }
 
-interface Session {
+export interface Session {
   id: string
   event_id: string
   name: string
@@ -39,7 +39,7 @@ interface Session {
   end_time: string
 }
 
-interface Participant {
+export interface Participant {
   id: string
   event_id: string
   full_name: string
@@ -51,7 +51,7 @@ interface Participant {
   receipt_number?: string
 }
 
-interface Checkin {
+export interface Checkin {
   id: string
   participant_id: string
   session_id: string
@@ -60,7 +60,7 @@ interface Checkin {
   override_reason?: string
 }
 
-interface SyncQueueItem {
+export interface SyncQueueItem {
   id: string
   type: 'checkin' | 'participant_registration'
   data: Record<string, unknown>
@@ -97,7 +97,7 @@ interface EliraOfflineDB extends DBSchema {
   sync_queue: {
     key: string
     value: SyncQueueItem
-    indexes: { 'by-synced': boolean }
+    indexes: { 'by-synced': 'synced' }
   }
 }
 
@@ -255,7 +255,8 @@ export async function addToSyncQueue(item: Omit<SyncQueueItem, 'id'>): Promise<s
 
 export async function getSyncQueue(): Promise<SyncQueueItem[]> {
   const db = await getDB()
-  return db.getAllFromIndex('sync_queue', 'by-synced', false)
+  // Query all items where synced is false (0 in IDB comparisons)
+  return db.getAllFromIndex('sync_queue', 'by-synced', IDBKeyRange.only(false))
 }
 
 export async function markSynced(itemId: string): Promise<void> {
@@ -270,9 +271,12 @@ export async function markSynced(itemId: string): Promise<void> {
 
 export async function clearSynced(): Promise<void> {
   const db = await getDB()
-  const syncedItems = await db.getAllFromIndex('sync_queue', 'by-synced', true)
-  for (const item of syncedItems) {
-    await db.delete('sync_queue', item.id)
+  // Get all unsynced items that should remain, delete all synced items
+  const allItems = await db.getAll('sync_queue')
+  for (const item of allItems) {
+    if (item.synced === true) {
+      await db.delete('sync_queue', item.id)
+    }
   }
 }
 

@@ -192,15 +192,30 @@ self.addEventListener('sync', (event) => {
 
   if (event.tag === 'sync-offline-queue') {
     event.waitUntil(
-      self.clients.matchAll().then((clients) => {
-        // Send message to all clients to process sync queue
-        clients.forEach((client) => {
-          client.postMessage({
-            type: 'SYNC_OFFLINE_QUEUE',
-            timestamp: new Date().toISOString(),
+      (async () => {
+        try {
+          // Send message to all clients to process sync queue
+          const clients = await self.clients.matchAll()
+          clients.forEach((client) => {
+            client.postMessage({
+              type: 'SYNC_OFFLINE_QUEUE',
+              timestamp: new Date().toISOString(),
+            })
           })
-        })
-      }),
+
+          // Retry the sync in case clients don't process it
+          // Give clients a small window to process the message
+          await new Promise((resolve) => setTimeout(resolve, 500))
+
+          // Notify clients again if needed
+          const retryClients = await self.clients.matchAll()
+          if (retryClients.length === 0) {
+            console.log('[Service Worker] No clients available to handle sync')
+          }
+        } catch (error) {
+          console.error('[Service Worker] Sync event error:', error)
+        }
+      })(),
     )
   }
 })

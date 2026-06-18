@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { registerSyncHandler } from '@/lib/offline/sync'
 
 /**
  * Service Worker Registration Component
@@ -55,13 +56,15 @@ export default function ServiceWorkerRegistration() {
 
       if ('serviceWorker' in navigator && 'SyncManager' in window) {
         navigator.serviceWorker.ready
-          .then((registration) => {
-            // Request background sync
-            registration.sync.register('sync-offline-queue').catch((err) => {
-              console.warn('[PWA] Failed to register background sync:', err)
-            })
+          .then((registration: any) => {
+            // Request background sync (sync property may not be in TS types but exists at runtime)
+            if (registration.sync) {
+              registration.sync.register('sync-offline-queue').catch((err: Error) => {
+                console.warn('[PWA] Failed to register background sync:', err)
+              })
+            }
           })
-          .catch((error) => {
+          .catch((error: Error) => {
             console.error('[PWA] Failed to access Service Worker for sync:', error)
           })
       }
@@ -81,6 +84,9 @@ export default function ServiceWorkerRegistration() {
     // Attach event listeners
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
+
+    // Initialize sync handler for message listening and online event handling
+    registerSyncHandler()
 
     // Cleanup
     return () => {
