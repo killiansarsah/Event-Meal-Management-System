@@ -35,16 +35,10 @@ export default function ServiceWorkerRegistration() {
               if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                 // New Service Worker is ready - notify user
                 console.log('[PWA] New Service Worker version available')
-                // Optionally trigger an update notification UI here
               }
             })
           }
         })
-
-        // Periodically check for updates
-        setInterval(() => {
-          registration.update()
-        }, 60000) // Check every 60 seconds
       })
       .catch((error) => {
         console.error('[PWA] Failed to register Service Worker:', error)
@@ -55,25 +49,33 @@ export default function ServiceWorkerRegistration() {
       console.log('[PWA] Device is online - triggering background sync')
 
       if ('serviceWorker' in navigator && 'SyncManager' in window) {
-        navigator.serviceWorker.ready
-          .then((registration: any) => {
-            // Request background sync (sync property may not be in TS types but exists at runtime)
-            if (registration.sync) {
-              registration.sync.register('sync-offline-queue').catch((err: Error) => {
-                console.warn('[PWA] Failed to register background sync:', err)
-              })
-            }
-          })
-          .catch((error: Error) => {
-            console.error('[PWA] Failed to access Service Worker for sync:', error)
-          })
+        try {
+          navigator.serviceWorker.ready
+            .then((registration: any) => {
+              // Request background sync (sync property may not be in TS types but exists at runtime)
+              if (registration.sync) {
+                registration.sync.register('sync-offline-queue').catch((err: Error) => {
+                  console.warn('[PWA] Failed to register background sync:', err)
+                })
+              }
+            })
+            .catch((error: Error) => {
+              console.warn('[PWA] Failed to access Service Worker for sync:', error)
+            })
+        } catch (err) {
+          console.warn('[PWA] Background sync not available:', err)
+        }
       }
 
       // Also send message to Service Worker to trigger sync
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({
-          type: 'REGISTER_BACKGROUND_SYNC',
-        })
+      try {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'REGISTER_BACKGROUND_SYNC',
+          })
+        }
+      } catch (err) {
+        console.warn('[PWA] Failed to send message to Service Worker:', err)
       }
     }
 
