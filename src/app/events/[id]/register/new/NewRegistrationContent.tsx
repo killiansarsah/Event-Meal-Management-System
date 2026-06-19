@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import { registerParticipantOffline } from '@/lib/offline/sync';
+import { registerParticipantOffline, syncFromServer } from '@/lib/offline/sync';
 import { FormInput } from '@/components/FormInput';
 import { FormError } from '@/components/FormError';
 import { SuccessMessage } from '@/components/SuccessMessage';
@@ -58,6 +58,11 @@ export default function NewRegistrationContent({ eventId }: { eventId: string })
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Sync offline data from server if online
+        if (isOnline) {
+          await syncFromServer();
+        }
+
         // Get event details
         const eventRes = await supabase
           .from('events')
@@ -94,7 +99,7 @@ export default function NewRegistrationContent({ eventId }: { eventId: string })
     };
 
     loadData();
-  }, [eventId, supabase]);
+  }, [eventId, supabase, isOnline]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -34,9 +34,27 @@ export default function LoginPage() {
 
     if (response.success) {
       setSuccessMessage('Login successful! Redirecting...');
+      
       // Get the user role and redirect accordingly
+      const userRole = (response.data as any)?.role;
+      const eventId = (response.data as any)?.event_id;
+      
+      let redirectPath = '/dashboard';
+      
+      if (userRole === 'super_admin') {
+        redirectPath = '/admin';
+      } else if (userRole === 'organizer') {
+        redirectPath = '/dashboard';
+      } else if (userRole === 'registration_staff' && eventId) {
+        redirectPath = `/events/${eventId}/register`;
+      } else if (userRole === 'catering_staff' && eventId) {
+        redirectPath = `/events/${eventId}/scan`;
+      } else if (userRole === 'finance_team' && eventId) {
+        redirectPath = `/events/${eventId}/payments`;
+      }
+      
       setTimeout(() => {
-        router.push('/dashboard');
+        router.push(redirectPath);
       }, 1000);
     }
   };
