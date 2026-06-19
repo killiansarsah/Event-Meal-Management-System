@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useApiRequest } from '@/hooks/useApiRequest';
-import { scanMealOffline } from '@/lib/offline/sync';
+import { scanMealOffline, syncFromServer } from '@/lib/offline/sync';
 
 interface Session {
   id: string;
@@ -45,6 +45,11 @@ export default function MealScanningContent() {
   useEffect(() => {
     const fetchSessions = async () => {
       try {
+        // Sync offline data from server if online
+        if (isOnline) {
+          await syncFromServer();
+        }
+
         const response = await request(`/api/events/${eventId}/sessions`, 'GET');
         if (response.success && Array.isArray(response.data)) {
           setSessions(response.data);
@@ -62,7 +67,7 @@ export default function MealScanningContent() {
     if (eventId) {
       fetchSessions();
     }
-  }, [eventId, request]);
+  }, [eventId, request, isOnline]);
 
   // Update meal count when session changes or result is shown
   useEffect(() => {

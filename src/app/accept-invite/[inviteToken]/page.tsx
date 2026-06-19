@@ -89,8 +89,24 @@ export default function AcceptInvitePage() {
 
     if (response.success) {
       setSuccessMessage('Invite accepted! Signing you in...');
+      
+      // Get the user role and event_id from response
+      const userRole = (response.data as any)?.role || (response.data as any)?.user?.role;
+      const eventId = (response.data as any)?.event_id || (response.data as any)?.user?.event_id;
+      
+      let redirectPath = '/dashboard';
+      
+      // Staff are always scoped to a single event
+      if (userRole === 'registration_staff' && eventId) {
+        redirectPath = `/events/${eventId}/register`;
+      } else if (userRole === 'catering_staff' && eventId) {
+        redirectPath = `/events/${eventId}/scan`;
+      } else if (userRole === 'finance_team' && eventId) {
+        redirectPath = `/events/${eventId}/payments`;
+      }
+      
       setTimeout(() => {
-        router.push('/dashboard');
+        router.push(redirectPath);
       }, 1500);
     }
   };
