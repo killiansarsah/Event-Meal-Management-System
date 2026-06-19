@@ -8,6 +8,7 @@ import { FormInput } from '@/components/FormInput';
 import { FormError } from '@/components/FormError';
 import { SuccessMessage } from '@/components/SuccessMessage';
 import { useApiRequest } from '@/hooks/useApiRequest';
+import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -32,12 +33,38 @@ export default function LoginPage() {
       password: formData.password,
     });
 
+    console.log('[v0] Login response:', response);
+
     if (response.success) {
       setSuccessMessage('Login successful! Redirecting...');
       
       // Get the user role and redirect accordingly
       const userRole = (response.data as any)?.role;
       const eventId = (response.data as any)?.event_id;
+      const userId = (response.data as any)?.user?.id;
+      const tenantId = (response.data as any)?.user?.tenant_id;
+      const session = (response.data as any)?.session;
+      
+      console.log('[v0] User role:', userRole, 'Event ID:', eventId);
+
+      // Store user info in sessionStorage for access across the app
+      if (userId && tenantId) {
+        sessionStorage.setItem('userId', userId);
+        sessionStorage.setItem('tenantId', tenantId);
+        if (eventId) {
+          sessionStorage.setItem('eventId', eventId);
+        }
+      }
+
+      // Set session in Supabase client to persist authentication
+      if (session) {
+        const supabase = createClient();
+        await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+        console.log('[v0] Session set in Supabase client');
+      }
       
       let redirectPath = '/dashboard';
       
@@ -53,9 +80,13 @@ export default function LoginPage() {
         redirectPath = `/events/${eventId}/payments`;
       }
       
+      console.log('[v0] Redirecting to:', redirectPath);
+      
       setTimeout(() => {
         router.push(redirectPath);
       }, 1000);
+    } else {
+      console.log('[v0] Login failed:', response.error);
     }
   };
 
