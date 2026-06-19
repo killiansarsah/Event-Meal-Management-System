@@ -68,8 +68,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Return session and user info
-    return NextResponse.json(
+    // Create response
+    const response = NextResponse.json(
       {
         user: {
           id: userRecord.id,
@@ -91,6 +91,25 @@ export async function POST(request: NextRequest) {
       },
       { status: 200 },
     )
+
+    // Set session tokens as HttpOnly cookies for persistence
+    response.cookies.set('sb-access-token', data.session.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: data.session.expires_in,
+      path: '/',
+    })
+
+    response.cookies.set('sb-refresh-token', data.session.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 365, // 1 year
+      path: '/',
+    })
+
+    return response
   } catch (err) {
     console.error("[v0] Login error:", err)
     return NextResponse.json(
