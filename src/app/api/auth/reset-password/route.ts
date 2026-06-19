@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServerClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 
 /**
  * POST /api/auth/reset-password
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the server client (this reads the session from cookies)
-    const supabase = await createServerClient()
+    const supabase = await createClient()
 
     // Update the user's password (this only works during a reset session)
     const { error } = await supabase.auth.updateUser({
